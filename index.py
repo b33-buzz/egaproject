@@ -319,7 +319,7 @@ def send_image(filename):
 
 
 # Video streaming route for webcam
-camera = cv2.VideoCapture(0)
+camera = cv2.VideoCapture(1)
 
 
 def generate_frames():
