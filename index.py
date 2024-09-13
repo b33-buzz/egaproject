@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, render_template_string, redirect, send_from_directory, url_for, Response, jsonify
+from flask import Flask, request, render_template_string, redirect, send_from_directory, jsonify
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 from PIL import Image, UnidentifiedImageError
@@ -189,7 +189,11 @@ template = '''
         </div>
 
         <!-- Display Prediction Result -->
-        <div id="result"></div>
+        <div id="result">
+            {% if predicted_class and confidence %}
+                <p>Detected: {{ predicted_class }}, Confidence: {{ confidence }}%</p>
+            {% endif %}
+        </div>
 
         <h3>Jenis Ikan yang dapat di deteksi</h3>
         <div class="fish-card-container">
@@ -275,54 +279,46 @@ template = '''
 </html>
 '''
 
-# Route for sending static images
-@app.route('/static/uploads/<filename>')
-def send_image(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-# Route for handling webcam capture
-@app.route('/capture', methods=['POST'])
-def capture_image():
-    image_data = request.form['image']
-    
-    # Decode the base64 image data
-    image_data = image_data.split(",")[1]
-    image_bytes = base64.b64decode(image_data)
-    
-    # Save the image to the server
-    image = Image.open(BytesIO(image_bytes))
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'realtime_capture.jpg')
-    image.save(filepath)
-
-    # Predict the fish species in the captured frame
-    predicted_class, confidence = predict_fish_species(image)
-    confidence_formatted = "{:.1f}".format(confidence * 100)
-
-    # Return JSON response with prediction
-    return jsonify({
-        "predicted_class": predicted_class,
-        "confidence": confidence_formatted
-    })
-
-# Main route for uploading images or using the camera
+# Route for the main page
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
+    predicted_class = None
+    confidence = None
+    
     if request.method == 'POST':
         if 'file' not in request.files:
             return redirect(request.url)
+        
         file = request.files['file']
         if file.filename == '':
             return redirect(request.url)
+        
         if file:
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(filepath)
             img = Image.open(filepath)
             predicted_class, confidence = predict_fish_species(img)
-            confidence_formatted = "{:.1f}".format(confidence * 100)
+            confidence = "{:.1f}".format(confidence * 100)
+    
+    # Pass predicted values to the template
+    return render_template_string(template, predicted_class=predicted_class, confidence=confidence)
 
-            return render_template_string(template, predicted_class=predicted_class, confidence=confidence_formatted)
+# Route for handling image capture from WebRTC
+@app.route('/capture', methods=['POST'])
+def capture_image():
+    image_data = request.form['image']
+    image_data = image_data.replace('data:image/jpeg;base64,', '')
+    image_data = base64.b64decode(image_data)
+    img = Image.open(BytesIO(image_data))
+    predicted_class, confidence = predict_fish_species(img)
+    confidence = "{:.1f}".format(confidence * 100)
+    
+    return jsonify({'predicted_class': predicted_class, 'confidence': confidence})
 
-    return render_template_string(template)
+# Serve uploaded files
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# Run the app
-app.run(host='0.0.0.0', port=5000)
+if __name__ == '__main__':
+    app.run(debug=True)
