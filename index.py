@@ -2,7 +2,6 @@ import os
 from flask import Flask, request, render_template_string, redirect, send_from_directory, url_for, Response
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
-from pyngrok import ngrok
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 import logging
@@ -385,7 +384,5 @@ def upload_file():
     return render_template_string(template)
 
 
-# Start ngrok and Flask server
-public_url = ngrok.connect(5000)
-print(f" * Public URL: {public_url}")
+
 app.run()
